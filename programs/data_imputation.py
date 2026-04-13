@@ -43,7 +43,7 @@ CONTINUOUS  = [
     "LBXTR", "LBDHDD",
     "BPXSY1", "BPXDI1",
     "BMXWAIST", "BMXBMI",
-    "VIDRVA", "VIDLVA",
+    "VIDROVA", "VIDLOVA",
     "AVG_VISUAL_ACUITY",
     "DIABETES_DURATION_YRS",
     "RIDAGEYR",            # 0% missing but include so KNN can use it as a distance feature
@@ -71,7 +71,7 @@ print("=" * 60)
 # Since Snellen values are non-linear,
 # convert the valid readings to LogMAR: log10(denominator / 20).
 # This makes the 0.3 threshold correct: log10(40/20) = 0.301 ≈ 20/40.
-for col in ["VIDRVA", "VIDLVA"]:
+for col in ["VIDROVA", "VIDLOVA"]:
     if col not in nhanes.columns:
         continue
     
@@ -86,8 +86,8 @@ for col in ["VIDRVA", "VIDLVA"]:
     print(f"  {col}: All valid values converted to LogMAR")
 
 # Recompute AVG_VISUAL_ACUITY now that both eyes are in LogMAR
-if "VIDRVA" in nhanes.columns and "VIDLVA" in nhanes.columns:
-    nhanes["AVG_VISUAL_ACUITY"] = nhanes[["VIDRVA", "VIDLVA"]].mean(axis=1, skipna=True)
+if "VIDROVA" in nhanes.columns and "VIDLOVA" in nhanes.columns:
+    nhanes["AVG_VISUAL_ACUITY"] = nhanes[["VIDROVA", "VIDLOVA"]].mean(axis=1, skipna=True)
     print(f"  AVG_VISUAL_ACUITY recomputed in LogMAR — "
           f"mean: {nhanes['AVG_VISUAL_ACUITY'].mean():.3f}, "
           f"range: {nhanes['AVG_VISUAL_ACUITY'].min():.3f} to "

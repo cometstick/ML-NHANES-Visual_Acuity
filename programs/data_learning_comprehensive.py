@@ -75,11 +75,11 @@ SMOTE_RATIO_META = 0.3   # minority brought to 30% of majority count (Run B)
 TARGET          = "VISION_IMPAIRED"
 
 # original:
-#ALWAYS_EXCLUDE  = ["VIDRVA", "VIDLVA", "AVG_VISUAL_ACUITY"]
+#ALWAYS_EXCLUDE  = ["VIDROVA", "VIDLOVA", "AVG_VISUAL_ACUITY"]
 # For ablation experiment (removing bp and lipids) use this instead:
-#ALWAYS_EXCLUDE = ["VIDRVA", "VIDLVA", "AVG_VISUAL_ACUITY", "BPXSY1", "BPXDI1", "LBXTR", "LBDHDD"]
+#ALWAYS_EXCLUDE = ["VIDROVA", "VIDLOVA", "AVG_VISUAL_ACUITY", "BPXSY1", "BPXDI1", "LBXTR", "LBDHDD"]
 # For year confounding experiment use this instead:
-ALWAYS_EXCLUDE  = ["VIDRVA", "VIDLVA", "AVG_VISUAL_ACUITY","CYCLE_1999-2000", "CYCLE_2001-2002", "CYCLE_2003-2004", "CYCLE_2005-2006", "CYCLE_2007-2008" ]
+ALWAYS_EXCLUDE  = ["VIDROVA", "VIDLOVA", "AVG_VISUAL_ACUITY","CYCLE_1999-2000", "CYCLE_2001-2002", "CYCLE_2003-2004", "CYCLE_2005-2006", "CYCLE_2007-2008" ]
 
 # Features to exclude from the metabolic-only run (Run B)
 CONFOUNDER_COLS = [
@@ -372,9 +372,10 @@ cw_xgb = XGBClassifier(
 )
 cw_xgb.fit(X_train_full, y_train)
 
+cw_y_proba = cw_xgb.predict_proba(X_test_full)[:, 1]
 
 xgb_y_pred = cw_xgb.predict(X_test_full)
-cv_auc = roc_auc_score(y_test, cw_xgb.predict_proba(X_test_full)[:, 1])
+cv_auc = roc_auc_score(y_test, cw_y_proba)
 cw_f1 = f1_score(y_test, xgb_y_pred)
 cw_prec = precision_score(y_test, xgb_y_pred)
 cw_rec = recall_score(y_test, xgb_y_pred)
@@ -458,6 +459,26 @@ for run_label, run_results, X_te in [
         print(mean_abs.head(5).round(4).to_string())
     except Exception as e:
         print(f"  [WARN] SHAP failed for {run_label}: {e}")
+
+print("  Computing SHAP for Class-weighted XGBoost...")
+X_sample = X_test_full.sample(n=min(SHAP_SAMPLE, len(X_test_full)),
+                               random_state=RANDOM_STATE)
+try:
+    explainer = shap.TreeExplainer(cw_xgb)
+    shap_vals = explainer.shap_values(X_sample)
+    shap_results["Class-weighted XGBoost"] = {
+        "explainer": explainer,
+        "values":    shap_vals,
+        "X_sample":  X_sample,
+    }
+    mean_abs = pd.Series(
+        np.abs(shap_vals).mean(axis=0),
+        index=X_sample.columns
+    ).sort_values(ascending=False)
+    print("  Top 5 SHAP features (Class-weighted XGBoost):")
+    print(mean_abs.head(5).round(4).to_string())
+except Exception as e:
+    print(f"  [WARN] SHAP failed for Class-weighted XGBoost: {e}")
 
 for label, band_res in results_C.items():
     if "XGBoost" not in band_res:
@@ -663,6 +684,19 @@ for label, band_res in results_C.items():
 # ── 6. SHAP mean |value| side-by-side comparison ──────────────────────────────
 if shap_results:
     keys = list(shap_results.keys())
+    print("  SHAP comparison plot entries:")
+    for run_label in keys:
+        if run_label == "Full":
+            print("    Full -> Full XGBoost (SMOTE-trained)")
+        elif run_label == "Metabolic-only":
+            print("    Metabolic-only -> Metabolic-only XGBoost (SMOTE-trained)")
+        elif run_label == "Class-weighted XGBoost":
+            print("    Class-weighted XGBoost -> Class-weighted XGBoost (no SMOTE)")
+        elif run_label.startswith("Age "):
+            print(f"    {run_label} -> Age-stratified full-feature XGBoost (SMOTE-trained)")
+        else:
+            print(f"    {run_label} -> unknown model mapping")
+
     fig, axes = plt.subplots(1, len(keys), figsize=(6 * len(keys), 7), squeeze=False)
     for i, run_label in enumerate(keys):
         ax = axes[0, i]
@@ -721,7 +755,7 @@ age_colors = {
     "60+":   "C3",
 }
 curve_defs = [
-    ("Full-feature XGBoost", y_test, results_A["XGBoost"]["y_proba"], "C0"),
+    ("Class-weighted XGBoost", y_test, cw_y_proba, "C0"),
     ("Metabolic-only XGBoost", y_test, results_B["XGBoost"]["y_proba"], "C1"),
 ]
 for label, band_res in results_C.items():
