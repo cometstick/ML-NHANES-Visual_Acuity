@@ -30,7 +30,7 @@ DEMO_COLS  = ["SEQN", "RIAGENDR", "RIDAGEYR", "RIDRETH1", "INDHHINC", "INDHHIN2"
 DIQ_KEEP  = ["SEQN", "DIQ010", "DIQ050", "DID040G", "DID040Q", "DIQ040G", "DIQ040Q", "DID040"]
 HDL_COLS   = ["SEQN", "LBDHDD", "LBXHDD"]
 TRIGLY_COLS= ["SEQN", "LBXTR"]
-VIX_COLS   = ["SEQN", "VIDROVA", "VIDLOVA"]
+VIX_COLS   = ["SEQN", "VIDRVA", "VIDLVA"]
 BMX_COLS   = ["SEQN", "BMXWAIST", "BMXBMI"]
 BPX_COLS   = ["SEQN", "BPXSY1", "BPXDI1"]
 
@@ -150,10 +150,10 @@ nhanes.drop(columns=["SEQN"], inplace=True, errors="ignore")
 print("  SEQN dropped.")
 
 # Fix hidden codes across all feature columns based on the following given look-up table, replacing the placeholder/coded values with NaN.
-# For VIDROVA / VIDLOVA: these are Snellen denominator values (25 = 20/25, 40 = 20/40
+# For VIDRVA / VIDLVA: these are Snellen denominator values (25 = 20/25, 40 = 20/40
 # etc.), Since value 666 encodes "worse than 20/200" (i.e. unmeasurable), 
 # cap to 200 for better numeric stability and interpretability.
-HIDDEN_CODES = {"RIAGENDR": [7, 9], "RIDAGEYR": [7, 9], "RIDRETH1": [7, 9], "INDHHINR": [77, 99], "DIQ010": [7, 9], "DIQ050": [7, 9], "DID040G": [7, 9], "DIQ040G": [7, 9], "DIQ040Q": [77777, 99999], "DID040Q": [77777, 99999], "DID040": [777, 999], "VIDROVA": [666], "VIDLOVA": [666]}
+HIDDEN_CODES = {"RIAGENDR": [7, 9], "RIDAGEYR": [7, 9], "RIDRETH1": [7, 9], "INDHHINR": [77, 99], "DIQ010": [7, 9], "DIQ050": [7, 9], "DID040G": [7, 9], "DIQ040G": [7, 9], "DIQ040Q": [77777, 99999], "DID040Q": [77777, 99999], "DID040": [777, 999], "VIDRVA": [666], "VIDLVA": [666]}
 for col, codes in HIDDEN_CODES.items():
     if col not in nhanes.columns:
         continue
@@ -164,11 +164,11 @@ for col, codes in HIDDEN_CODES.items():
 
 # ── Step 3b: Drop rows missing the vision outcome ─────────────────────────────
 print("\n" + "=" * 60)
-print("Step 3b — Dropping rows with no missing/partial vision outcome (VIDROVA or VIDLOVA are NaN)")
+print("Step 3b — Dropping rows with no missing/partial vision outcome (VIDRVA or VIDLVA are NaN)")
 print("=" * 60)
 
 before = len(nhanes)
-either_missing = nhanes["VIDROVA"].isna() | nhanes["VIDLOVA"].isna()
+either_missing = nhanes["VIDRVA"].isna() | nhanes["VIDLVA"].isna()
 nhanes = nhanes[~either_missing].copy()
 after = len(nhanes)
 print(f"  Removed {before - after} rows ({100*(before-after)/before:.1f}% of sample)")
@@ -201,11 +201,11 @@ print("\n" + "=" * 60)
 print("Step 4 — Feature engineering")
 print("=" * 60)
 # Engineered Featured #1: Average visual acuity (mean of non-null eyes per row)
-if "VIDROVA" in nhanes.columns and "VIDLOVA" in nhanes.columns:
-    nhanes["AVG_VISUAL_ACUITY"] = nhanes[["VIDROVA", "VIDLOVA"]].mean(axis=1, skipna=True)
+if "VIDRVA" in nhanes.columns and "VIDLVA" in nhanes.columns:
+    nhanes["AVG_VISUAL_ACUITY"] = nhanes[["VIDRVA", "VIDLVA"]].mean(axis=1, skipna=True)
     print(f"  AVG_VISUAL_ACUITY: {nhanes['AVG_VISUAL_ACUITY'].notna().sum()} non-null values")
 else:
-    print("  [WARN] VIDROVA or VIDLOVA missing — AVG_VISUAL_ACUITY not created")
+    print("  [WARN] VIDRVA or VIDLVA missing — AVG_VISUAL_ACUITY not created")
 
 # Engineered Feature #2: Diabetes duration in years  =  current_age  -  age_at_diagnosis (DID040)
 # current_age  : RIDAGEYR (primary), DID040Q fallback for cycles where RIDAGEYR is NaN)

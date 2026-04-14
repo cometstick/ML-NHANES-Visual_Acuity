@@ -75,15 +75,23 @@ SMOTE_RATIO_META = 0.3   # minority brought to 30% of majority count (Run B)
 TARGET          = "VISION_IMPAIRED"
 
 # original:
-#ALWAYS_EXCLUDE  = ["VIDROVA", "VIDLOVA", "AVG_VISUAL_ACUITY"]
+#ALWAYS_EXCLUDE  = ["VIDRVA", "VIDLVA", "AVG_VISUAL_ACUITY"]
 # For ablation experiment (removing bp and lipids) use this instead:
-#ALWAYS_EXCLUDE = ["VIDROVA", "VIDLOVA", "AVG_VISUAL_ACUITY", "BPXSY1", "BPXDI1", "LBXTR", "LBDHDD"]
+#ALWAYS_EXCLUDE = ["VIDRVA", "VIDLVA", "AVG_VISUAL_ACUITY", "BPXSY1", "BPXDI1", "LBXTR", "LBDHDD"]
 # For year confounding experiment use this instead:
-ALWAYS_EXCLUDE  = ["VIDROVA", "VIDLOVA", "AVG_VISUAL_ACUITY","CYCLE_1999-2000", "CYCLE_2001-2002", "CYCLE_2003-2004", "CYCLE_2005-2006", "CYCLE_2007-2008" ]
+ALWAYS_EXCLUDE  = ["VIDRVA", "VIDLVA", "AVG_VISUAL_ACUITY","CYCLE_1999-2000", "CYCLE_2001-2002", "CYCLE_2003-2004", "CYCLE_2005-2006", "CYCLE_2007-2008" ]
 
 # Features to exclude from the metabolic-only run (Run B)
+# CONFOUNDER_COLS = [
+#     "RIDAGEYR", "RIAGENDR", "RIDRETH1", "INDHHINR",
+#     "CYCLE_1999-2000", "CYCLE_2001-2002", "CYCLE_2003-2004",
+#     "CYCLE_2005-2006", "CYCLE_2007-2008",
+# ]
 CONFOUNDER_COLS = [
-    "RIDAGEYR", "RIAGENDR", "RIDRETH1", "INDHHINR",
+    "RIDAGEYR", "INDHHINR",
+    "IS_FEMALE", "IS_MALE",
+    "IS_MEXICAN_AMERICAN", "IS_NON_HISPANIC_BLACK",
+    "IS_NON_HISPANIC_WHITE", "IS_OTHER_HISPANIC", "IS_OTHER_RACE",
     "CYCLE_1999-2000", "CYCLE_2001-2002", "CYCLE_2003-2004",
     "CYCLE_2005-2006", "CYCLE_2007-2008",
 ]
@@ -372,10 +380,9 @@ cw_xgb = XGBClassifier(
 )
 cw_xgb.fit(X_train_full, y_train)
 
-cw_y_proba = cw_xgb.predict_proba(X_test_full)[:, 1]
 
 xgb_y_pred = cw_xgb.predict(X_test_full)
-cv_auc = roc_auc_score(y_test, cw_y_proba)
+cv_auc = roc_auc_score(y_test, cw_xgb.predict_proba(X_test_full)[:, 1])
 cw_f1 = f1_score(y_test, xgb_y_pred)
 cw_prec = precision_score(y_test, xgb_y_pred)
 cw_rec = recall_score(y_test, xgb_y_pred)
@@ -459,26 +466,6 @@ for run_label, run_results, X_te in [
         print(mean_abs.head(5).round(4).to_string())
     except Exception as e:
         print(f"  [WARN] SHAP failed for {run_label}: {e}")
-
-print("  Computing SHAP for Class-weighted XGBoost...")
-X_sample = X_test_full.sample(n=min(SHAP_SAMPLE, len(X_test_full)),
-                               random_state=RANDOM_STATE)
-try:
-    explainer = shap.TreeExplainer(cw_xgb)
-    shap_vals = explainer.shap_values(X_sample)
-    shap_results["Class-weighted XGBoost"] = {
-        "explainer": explainer,
-        "values":    shap_vals,
-        "X_sample":  X_sample,
-    }
-    mean_abs = pd.Series(
-        np.abs(shap_vals).mean(axis=0),
-        index=X_sample.columns
-    ).sort_values(ascending=False)
-    print("  Top 5 SHAP features (Class-weighted XGBoost):")
-    print(mean_abs.head(5).round(4).to_string())
-except Exception as e:
-    print(f"  [WARN] SHAP failed for Class-weighted XGBoost: {e}")
 
 for label, band_res in results_C.items():
     if "XGBoost" not in band_res:
@@ -684,19 +671,6 @@ for label, band_res in results_C.items():
 # ── 6. SHAP mean |value| side-by-side comparison ──────────────────────────────
 if shap_results:
     keys = list(shap_results.keys())
-    print("  SHAP comparison plot entries:")
-    for run_label in keys:
-        if run_label == "Full":
-            print("    Full -> Full XGBoost (SMOTE-trained)")
-        elif run_label == "Metabolic-only":
-            print("    Metabolic-only -> Metabolic-only XGBoost (SMOTE-trained)")
-        elif run_label == "Class-weighted XGBoost":
-            print("    Class-weighted XGBoost -> Class-weighted XGBoost (no SMOTE)")
-        elif run_label.startswith("Age "):
-            print(f"    {run_label} -> Age-stratified full-feature XGBoost (SMOTE-trained)")
-        else:
-            print(f"    {run_label} -> unknown model mapping")
-
     fig, axes = plt.subplots(1, len(keys), figsize=(6 * len(keys), 7), squeeze=False)
     for i, run_label in enumerate(keys):
         ax = axes[0, i]
@@ -705,6 +679,28 @@ if shap_results:
             np.abs(sr["values"]).mean(axis=0),
             index=sr["X_sample"].columns
         ).sort_values(ascending=True).tail(15)
+
+        label_map = {
+    "RIDAGEYR": "Age",
+    "INDHHINR": "Household Income",
+    "DIQ010": "Diabetes Diagnosis",
+    "DIQ050": "Insulin Use",
+    "LBXTR": "Triglycerides",
+    "BMXWAIST": "Waist Circumference",
+    "BMXBMI": "BMI",
+    "BPXSY1": "Systolic Blood Pressure",
+    "BPXDI1": "Diastolic Blood Pressure",
+    "LBDHDD": "HDL Cholesterol",
+    "DIABETES_DURATION_YRS": "Diabetes Duration",
+    "IS_FEMALE": "Female",
+    "IS_MALE": "Male",
+    "IS_MEXICAN_AMERICAN": "Mexican American",
+    "IS_NON_HISPANIC_BLACK": "Non-Hispanic Black",
+    "IS_NON_HISPANIC_WHITE": "Non-Hispanic White",
+    "IS_OTHER_HISPANIC": "Other Hispanic",
+    "IS_OTHER_RACE": "Other Race"
+}
+        imp.index = imp.index.map(lambda x: label_map.get(x, x))
         ax.barh(range(len(imp)), imp.values, color="#4C72B0")
         ax.set_yticks(range(len(imp)))
         ax.set_yticklabels(imp.index, fontsize=9)
@@ -755,7 +751,7 @@ age_colors = {
     "60+":   "C3",
 }
 curve_defs = [
-    ("Class-weighted XGBoost", y_test, cw_y_proba, "C0"),
+    ("Full-feature XGBoost", y_test, results_A["XGBoost"]["y_proba"], "C0"),
     ("Metabolic-only XGBoost", y_test, results_B["XGBoost"]["y_proba"], "C1"),
 ]
 for label, band_res in results_C.items():

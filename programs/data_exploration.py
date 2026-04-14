@@ -29,7 +29,7 @@ print(f"  Columns: {df.columns.tolist()}\n")
 
 # ── Define target and features ────────────────────────────────────────────────
 TARGET = "AVG_VISUAL_ACUITY"
-EXCLUDE_COLS = ["VIDROVA", "VIDLOVA", "VISION_IMPAIRED"]  # Raw vision measurements and binary target
+EXCLUDE_COLS = ["VIDRVA", "VIDLVA", "VISION_IMPAIRED"]  # Raw vision measurements and binary target
 FEATURES = [c for c in df.columns if c not in EXCLUDE_COLS and c != TARGET]
 
 # Convert CYCLE dummies and categorical to numeric for correlation

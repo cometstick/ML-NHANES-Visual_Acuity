@@ -43,7 +43,7 @@ CONTINUOUS  = [
     "LBXTR", "LBDHDD",
     "BPXSY1", "BPXDI1",
     "BMXWAIST", "BMXBMI",
-    "VIDROVA", "VIDLOVA",
+    "VIDRVA", "VIDLVA",
     "AVG_VISUAL_ACUITY",
     "DIABETES_DURATION_YRS",
     "RIDAGEYR",            # 0% missing but include so KNN can use it as a distance feature
@@ -71,7 +71,7 @@ print("=" * 60)
 # Since Snellen values are non-linear,
 # convert the valid readings to LogMAR: log10(denominator / 20).
 # This makes the 0.3 threshold correct: log10(40/20) = 0.301 ≈ 20/40.
-for col in ["VIDROVA", "VIDLOVA"]:
+for col in ["VIDRVA", "VIDLVA"]:
     if col not in nhanes.columns:
         continue
     
@@ -86,8 +86,8 @@ for col in ["VIDROVA", "VIDLOVA"]:
     print(f"  {col}: All valid values converted to LogMAR")
 
 # Recompute AVG_VISUAL_ACUITY now that both eyes are in LogMAR
-if "VIDROVA" in nhanes.columns and "VIDLOVA" in nhanes.columns:
-    nhanes["AVG_VISUAL_ACUITY"] = nhanes[["VIDROVA", "VIDLOVA"]].mean(axis=1, skipna=True)
+if "VIDRVA" in nhanes.columns and "VIDLVA" in nhanes.columns:
+    nhanes["AVG_VISUAL_ACUITY"] = nhanes[["VIDRVA", "VIDLVA"]].mean(axis=1, skipna=True)
     print(f"  AVG_VISUAL_ACUITY recomputed in LogMAR — "
           f"mean: {nhanes['AVG_VISUAL_ACUITY'].mean():.3f}, "
           f"range: {nhanes['AVG_VISUAL_ACUITY'].min():.3f} to "
@@ -171,9 +171,9 @@ for col, (lo, hi, label) in checks.items():
     status = "OK" if (n_low + n_high) == 0 else "WARN"
     print(f"  [{status}] {label}: {n_low} below {lo}, {n_high} above {hi}")
 
-# ── Step 4: One-hot encode CYCLE ──────────────────────────────────────────────
+# ── Step 4: One-hot encoding CYCLE, RIAGENDR, RIDRETH1 ──────────────────────────────────────────────
 print("\n" + "=" * 60)
-print("Step 4 — One-hot encoding CYCLE")
+print("Step 4 — One-hot encoding CYCLE, RIAGENDR, RIDRETH1")
 print("=" * 60)
 
 cycle_dummies = pd.get_dummies(nhanes["CYCLE"], prefix="CYCLE", drop_first=False)
@@ -182,6 +182,51 @@ cycle_dummies = pd.get_dummies(nhanes["CYCLE"], prefix="CYCLE", drop_first=False
 nhanes = pd.concat([nhanes.drop(columns=["CYCLE"]), cycle_dummies], axis=1)
 print(f"  CYCLE expanded into columns: {cycle_dummies.columns.tolist()}")
 print(f"  Shape after encoding: {nhanes.shape}")
+
+# --- Gender ---
+gender_map = {
+    1: "MALE",
+    2: "FEMALE"
+}
+
+gender_dummies = pd.get_dummies(
+    nhanes["RIAGENDR"].map(gender_map),
+    prefix="IS",
+    prefix_sep="_"
+)
+
+nhanes = pd.concat(
+    [nhanes.drop(columns=["RIAGENDR"]), gender_dummies],
+    axis=1
+)
+
+print(f"  Gender columns: {gender_dummies.columns.tolist()}")
+print(f"  Shape after gender encoding: {nhanes.shape}")
+
+
+# --- Ethnicity ---
+ethnicity_map = {
+    1: "MEXICAN_AMERICAN",
+    2: "OTHER_HISPANIC",
+    3: "NON_HISPANIC_WHITE",
+    4: "NON_HISPANIC_BLACK",
+    5: "OTHER_RACE"
+}
+
+ethnicity_dummies = pd.get_dummies(
+    nhanes["RIDRETH1"].map(ethnicity_map),
+    prefix="IS",
+    prefix_sep="_"
+)
+
+nhanes = pd.concat(
+    [nhanes.drop(columns=["RIDRETH1"]), ethnicity_dummies],
+    axis=1
+)
+
+print(f"  Ethnicity columns: {ethnicity_dummies.columns.tolist()}")
+print(f"  Shape after ethnicity encoding: {nhanes.shape}")
+
 
 # ── Step 5: Target engineering ────────────────────────────────────────────────
 print("\n" + "=" * 60)
